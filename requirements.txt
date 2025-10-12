@@ -1,0 +1,24 @@
+# Log Anomaly Detection Model Benchmarking Requirements
+
+# Deep Learning & Transformers
+torch>=2.0.0
+transformers>=4.30.0
+accelerate>=0.20.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Metrics & Evaluation
+scikit-learn>=1.3.0
+
+# Utilities
+tqdm>=4.65.0
+requests>=2.31.0
+
+# Configuration
+pyyaml>=6.0
+
+# Regex & Text Processing
+regex>=2023.6.3
+

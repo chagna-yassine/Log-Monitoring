@@ -1,0 +1,59 @@
+# Log Anomaly Detection Benchmarking Configuration
+
+# Model Configuration
+model:
+  name: "Dumi2025/log-anomaly-detection-model-roberta"
+  max_length: 512
+  batch_size: 32
+  device: "cuda"  # or "cpu"
+
+# Dataset Configuration
+dataset:
+  name: "HDFS"
+  url: "https://zenodo.org/record/3227177/files/HDFS_1.tar.gz"
+  base_path: "datasets/hdfs"
+  raw_log: "HDFS.log"
+  label_file: "anomaly_label.csv"
+  
+# Output Configuration
+output:
+  base_path: "datasets/hdfs/output/hdfs"
+  structured_log: "HDFS.log_structured.csv"
+  templates: "HDFS.log_templates.csv"
+  sequences: "hdfs_sequence.csv"
+  template_mapping: "hdfs_log_templates.json"
+  results_dir: "results"
+
+# Preprocessing Configuration
+preprocessing:
+  # Drain parser parameters
+  drain:
+    depth: 4
+    st: 0.4  # Similarity threshold
+    rex:
+      - "(?<=blk_)[-\\d]+"
+      - "\\d+\\.\\d+\\.\\d+\\.\\d+"
+      - "(/[-\\w]+)+"
+  
+  # Sequence parameters
+  sequence_separator: " | "
+  
+  # Train/Test split
+  train_ratio: 0.7  # 70% of normal blocks for training
+  random_seed: 42
+
+# Benchmark Configuration
+benchmark:
+  metrics:
+    - "accuracy"
+    - "precision"
+    - "recall"
+    - "f1"
+    - "auc_roc"
+    - "confusion_matrix"
+  averaging_methods:
+    - "binary"
+    - "weighted"
+    - "macro"
+    - "micro"
+

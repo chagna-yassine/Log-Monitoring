@@ -1,0 +1,51 @@
+MIT License
+
+Copyright (c) 2024 Log Anomaly Detection Benchmarking Project
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+Third-Party Components:
+
+This project uses and acknowledges the following:
+
+1. HDFS Dataset
+   - Source: LogHub (https://github.com/logpai/loghub)
+   - License: See dataset source for details
+   - Citation: He et al., "Loghub: A Large Collection of System Log Datasets 
+               towards Automated Log Analytics"
+
+2. Drain Algorithm
+   - Based on: "Drain: An Online Log Parsing Approach with Fixed Depth Tree"
+   - Authors: Pinjia He, Jieming Zhu, Zibin Zheng, and Michael R. Lyu
+   - Citation: He et al., ICWS 2017
+
+3. Model (Dumi2025/log-anomaly-detection-model-roberta)
+   - Source: Hugging Face Model Hub
+   - License: See model card for specific license
+
+4. Python Dependencies
+   - PyTorch: BSD-style license
+   - Transformers: Apache License 2.0
+   - Pandas: BSD 3-Clause License
+   - NumPy: BSD License
+   - Scikit-learn: BSD 3-Clause License
+   - See requirements.txt for full list
+
