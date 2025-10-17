@@ -7,8 +7,8 @@ model:
   batch_size: 32
   device: "cuda"  # or "cpu"
 
-# Dataset Selection (HDFS or BGL)
-dataset_name: "BGL"  # Change to "HDFS" or "BGL"
+# Dataset Selection (HDFS, BGL, or AIT)
+dataset_name: "AIT"  # Change to "HDFS", "BGL", or "AIT"
 
 # HDFS Dataset Configuration
 hdfs_dataset:
@@ -26,6 +26,48 @@ bgl_dataset:
   raw_log: "BGL_2k.log"
   structured_file: "BGL_2k.log_structured.csv"  # BGL structured file with labels
   templates_file: "BGL_2k.log_templates.csv"    # BGL templates file
+
+# AIT-LDS Dataset Configuration
+ait_dataset:
+  name: "AIT-LDS"
+  base_url: "https://zenodo.org/record/5789063/files"
+  base_path: "datasets/ait"
+  datasets:
+    - name: "fox"
+      url: "https://zenodo.org/record/5789063/files/fox.tar.gz?download=1"
+      size: "26 GB"
+      scan_volume: "High"
+    - name: "harrison"
+      url: "https://zenodo.org/record/5789063/files/harrison.tar.gz?download=1"
+      size: "27 GB"
+      scan_volume: "High"
+    - name: "russellmitchell"
+      url: "https://zenodo.org/record/5789063/files/russellmitchell.tar.gz?download=1"
+      size: "14 GB"
+      scan_volume: "Low"
+    - name: "santos"
+      url: "https://zenodo.org/record/5789063/files/santos.tar.gz?download=1"
+      size: "17 GB"
+      scan_volume: "Low"
+    - name: "shaw"
+      url: "https://zenodo.org/record/5789063/files/shaw.tar.gz?download=1"
+      size: "27 GB"
+      scan_volume: "Low"
+    - name: "wardbeck"
+      url: "https://zenodo.org/record/5789063/files/wardbeck.tar.gz?download=1"
+      size: "26 GB"
+      scan_volume: "Low"
+    - name: "wheeler"
+      url: "https://zenodo.org/record/5789063/files/wheeler.tar.gz?download=1"
+      size: "30 GB"
+      scan_volume: "High"
+    - name: "wilson"
+      url: "https://zenodo.org/record/5789063/files/wilson.tar.gz?download=1"
+      size: "39 GB"
+      scan_volume: "High"
+  selected_dataset: "russellmitchell"  # Start with smallest dataset for testing
+  log_types: ["apache_access", "apache_error", "auth", "dns", "vpn", "audit", "suricata", "syslog"]
+  attack_types: ["scan", "webshell_upload", "password_cracking", "privilege_escalation", "remote_execution", "data_exfiltration"]
   
 # Output Configuration
 output:
@@ -41,6 +83,12 @@ output:
     templates: "BGL.log_templates.csv"
     sequences: "bgl_sequence.csv"
     template_mapping: "bgl_log_templates.json"
+  ait:
+    base_path: "datasets/ait/output/ait"
+    structured_log: "ait_structured.csv"
+    templates: "ait_templates.csv"
+    sequences: "ait_sequence.csv"
+    template_mapping: "ait_log_templates.json"
   results_dir: "results"
 
 # Preprocessing Configuration

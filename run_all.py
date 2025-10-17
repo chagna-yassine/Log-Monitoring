@@ -131,9 +131,44 @@ def main():
         print("\nResults are available in the 'results/' directory.")
         print("Check 'bgl_benchmark_results.json' for detailed metrics.")
     
+    elif dataset_name == "AIT":
+        print("\nThis will run the AIT-LDS pipeline:")
+        print("1. Download AIT-LDS dataset from Zenodo")
+        print("2. Preprocess AIT-LDS logs (parse, create sequences, split)")
+        print("3. Run benchmark with the model")
+        
+        scripts_dir = Path("scripts")
+        
+        # Step 1: Download AIT data
+        if not run_script(
+            str(scripts_dir / "download_data_ait.py"),
+            "Step 1: Download AIT-LDS Dataset"
+        ):
+            print("\nPipeline stopped due to error.")
+            return
+        
+        # Step 2: Preprocess AIT
+        if not run_script(
+            str(scripts_dir / "preprocess_ait.py"),
+            "Step 2: Preprocess AIT-LDS Data"
+        ):
+            print("\nPipeline stopped due to error.")
+            return
+        
+        # Step 3: Benchmark AIT
+        if not run_script(
+            str(scripts_dir / "benchmark_ait.py"),
+            "Step 3: Run AIT-LDS Benchmark"
+        ):
+            print("\nPipeline stopped due to error.")
+            return
+            
+        print("\nResults are available in the 'results/' directory.")
+        print("Check 'ait_<dataset>_benchmark_results.json' for detailed metrics.")
+    
     else:
         print(f"\nError: Unknown dataset '{dataset_name}'")
-        print("Please set dataset_name to 'HDFS' or 'BGL' in config.yaml")
+        print("Please set dataset_name to 'HDFS', 'BGL', or 'AIT' in config.yaml")
         return
     
     # Success!
