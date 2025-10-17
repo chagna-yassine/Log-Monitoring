@@ -7,21 +7,39 @@ model:
   batch_size: 32
   device: "cuda"  # or "cpu"
 
-# Dataset Configuration
-dataset:
+# Dataset Selection (HDFS or BGL)
+dataset_name: "BGL"  # Change to "HDFS" or "BGL"
+
+# HDFS Dataset Configuration
+hdfs_dataset:
   name: "HDFS"
   url: "https://zenodo.org/record/3227177/files/HDFS_1.tar.gz"
   base_path: "datasets/hdfs"
   raw_log: "HDFS.log"
   label_file: "anomaly_label.csv"
+
+# BGL Dataset Configuration
+bgl_dataset:
+  name: "BGL"
+  url: "https://zenodo.org/record/3227177/files/BGL_2k.tar.gz"
+  base_path: "datasets/bgl"
+  raw_log: "BGL_2k.log"
+  label_file: "BGL_2k.log_structured.csv"  # BGL has labels in structured format
   
 # Output Configuration
 output:
-  base_path: "datasets/hdfs/output/hdfs"
-  structured_log: "HDFS.log_structured.csv"
-  templates: "HDFS.log_templates.csv"
-  sequences: "hdfs_sequence.csv"
-  template_mapping: "hdfs_log_templates.json"
+  hdfs:
+    base_path: "datasets/hdfs/output/hdfs"
+    structured_log: "HDFS.log_structured.csv"
+    templates: "HDFS.log_templates.csv"
+    sequences: "hdfs_sequence.csv"
+    template_mapping: "hdfs_log_templates.json"
+  bgl:
+    base_path: "datasets/bgl/output/bgl"
+    structured_log: "BGL.log_structured.csv"
+    templates: "BGL.log_templates.csv"
+    sequences: "bgl_sequence.csv"
+    template_mapping: "bgl_log_templates.json"
   results_dir: "results"
 
 # Preprocessing Configuration

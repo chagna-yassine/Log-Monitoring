@@ -1,8 +1,7 @@
 """
-Complete Pipeline Runner
+Unified Dataset Runner
 
-Runs the entire pipeline: download, preprocess, and benchmark.
-Now supports both HDFS and BGL datasets based on configuration.
+Runs the complete pipeline for either HDFS or BGL dataset based on configuration.
 """
 
 import sys
@@ -52,7 +51,7 @@ def main():
     """Run the complete pipeline for the configured dataset."""
     print("="*70)
     print("LOG ANOMALY DETECTION BENCHMARKING")
-    print("Complete Pipeline Runner")
+    print("Unified Dataset Runner")
     print("="*70)
     
     # Load configuration
@@ -93,9 +92,6 @@ def main():
             print("\nPipeline stopped due to error.")
             return
             
-        print("\nResults are available in the 'results/' directory.")
-        print("Check 'benchmark_results.json' for detailed metrics.")
-        
     elif dataset_name == "BGL":
         print("\nThis will run the BGL pipeline:")
         print("1. Download BGL dataset from Zenodo")
@@ -127,9 +123,6 @@ def main():
         ):
             print("\nPipeline stopped due to error.")
             return
-            
-        print("\nResults are available in the 'results/' directory.")
-        print("Check 'bgl_benchmark_results.json' for detailed metrics.")
     
     else:
         print(f"\nError: Unknown dataset '{dataset_name}'")
@@ -140,8 +133,13 @@ def main():
     print("\n" + "="*70)
     print(f"✓ COMPLETE {dataset_name} PIPELINE FINISHED SUCCESSFULLY!")
     print("="*70)
+    
+    print(f"\nResults are available in the 'results/' directory.")
+    if dataset_name == "HDFS":
+        print("Check 'benchmark_results.json' for detailed metrics.")
+    else:
+        print("Check 'bgl_benchmark_results.json' for detailed metrics.")
 
 
 if __name__ == "__main__":
     main()
-
