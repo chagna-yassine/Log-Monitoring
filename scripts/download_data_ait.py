@@ -24,25 +24,44 @@ def download_file(url: str, output_path: Path):
     """Downloads a file from a URL with a progress bar."""
     print(f"  Downloading {url} to {output_path}...")
     
-    try:
-        response = requests.get(url, stream=True)
-        response.raise_for_status()
+    # Try different URL formats if the first one fails
+    urls_to_try = [
+        url,
+        url.replace('/records/', '/record/'),
+        url.replace('/record/', '/records/'),
+        url.replace('?download=1', ''),
+        url.replace('?download=1', '') + '?download=1'
+    ]
+    
+    for i, try_url in enumerate(urls_to_try):
+        if i > 0:
+            print(f"  Trying alternative URL format: {try_url}")
         
-        total_size = int(response.headers.get('content-length', 0))
-        block_size = 8192
-        
-        with open(output_path, 'wb') as f:
-            with tqdm(total=total_size, unit='iB', unit_scale=True, desc=output_path.name) as pbar:
-                for chunk in response.iter_content(chunk_size=block_size):
-                    f.write(chunk)
-                    pbar.update(len(chunk))
-        
-        print(f"  ✓ Download complete: {output_path}")
-        return True
-        
-    except requests.exceptions.RequestException as e:
-        print(f"  ✗ Download failed: {e}")
-        return False
+        try:
+            response = requests.get(try_url, stream=True, timeout=30)
+            response.raise_for_status()
+            
+            total_size = int(response.headers.get('content-length', 0))
+            block_size = 8192
+            
+            with open(output_path, 'wb') as f:
+                with tqdm(total=total_size, unit='iB', unit_scale=True, desc=output_path.name) as pbar:
+                    for chunk in response.iter_content(chunk_size=block_size):
+                        f.write(chunk)
+                        pbar.update(len(chunk))
+            
+            print(f"  ✓ Download complete: {output_path}")
+            return True
+            
+        except requests.exceptions.RequestException as e:
+            if i == len(urls_to_try) - 1:  # Last attempt
+                print(f"  ✗ All download attempts failed. Last error: {e}")
+                return False
+            else:
+                print(f"  ⚠ Attempt {i+1} failed: {e}")
+                continue
+    
+    return False
 
 
 def extract_tar_gz(tar_path: Path, extract_to: Path) -> bool:
@@ -238,6 +257,13 @@ def main():
     print(f"\n" + "="*70)
     print("AIT-LDS DOWNLOAD COMPLETE!")
     print("="*70)
+    
+    print(f"\nNote: AIT-LDS datasets are large (14-39 GB each).")
+    print(f"If download fails, you can:")
+    print(f"  1. Check your internet connection")
+    print(f"  2. Try downloading manually from Zenodo")
+    print(f"  3. Use a different dataset (edit config.yaml)")
+    print(f"  4. Check Zenodo record: https://zenodo.org/record/5789063")
 
 
 if __name__ == "__main__":
