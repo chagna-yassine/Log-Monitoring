@@ -21,10 +21,10 @@ hdfs_dataset:
 # BGL Dataset Configuration
 bgl_dataset:
   name: "BGL"
-  url: "https://zenodo.org/record/3227177/files/BGL_2k.tar.gz"
+  url: "https://zenodo.org/records/8196385/files/BGL.zip?download=1"
   base_path: "datasets/bgl"
-  raw_log: "BGL_2k.log"
-  label_file: "BGL_2k.log_structured.csv"  # BGL has labels in structured format
+  raw_log: "BGL.log"
+  label_file: "BGL_anomaly_label.csv"  # BGL has similar structure to HDFS
   
 # Output Configuration
 output:

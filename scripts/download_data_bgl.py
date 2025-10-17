@@ -7,7 +7,7 @@ Downloads and extracts the BGL dataset from Zenodo.
 import os
 import sys
 import requests
-import tarfile
+import zipfile
 from pathlib import Path
 from tqdm import tqdm
 import yaml
@@ -50,22 +50,22 @@ def download_file(url: str, output_path: str) -> None:
     print(f"Download complete: {output_path}")
 
 
-def extract_tar_gz(tar_path: str, extract_to: str) -> None:
+def extract_zip(zip_path: str, extract_to: str) -> None:
     """
-    Extract tar.gz file.
+    Extract zip file.
     
     Args:
-        tar_path: Path to tar.gz file
+        zip_path: Path to zip file
         extract_to: Directory to extract to
     """
-    print(f"\nExtracting: {tar_path}")
+    print(f"\nExtracting: {zip_path}")
     print(f"Extract to: {extract_to}")
     
-    with tarfile.open(tar_path, 'r:gz') as tar:
-        members = tar.getmembers()
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        members = zip_ref.infolist()
         with tqdm(desc="Extracting", total=len(members)) as pbar:
             for member in members:
-                tar.extract(member, path=extract_to)
+                zip_ref.extract(member, path=extract_to)
                 pbar.update(1)
     
     print("Extraction complete")
@@ -89,26 +89,26 @@ def main():
     base_dir.mkdir(parents=True, exist_ok=True)
     
     # Download file
-    tar_filename = url.split('/')[-1]
-    tar_path = base_dir / tar_filename
+    zip_filename = "BGL.zip"  # Fixed filename for BGL dataset
+    zip_path = base_dir / zip_filename
     
-    if tar_path.exists():
-        print(f"\nFile already exists: {tar_path}")
+    if zip_path.exists():
+        print(f"\nFile already exists: {zip_path}")
         response = input("Download again? (y/n): ")
         if response.lower() != 'y':
             print("Skipping download")
         else:
-            download_file(url, str(tar_path))
+            download_file(url, str(zip_path))
     else:
-        download_file(url, str(tar_path))
+        download_file(url, str(zip_path))
     
     # Extract
     print()
-    if not tar_path.exists():
-        print(f"Error: Downloaded file not found at {tar_path}")
+    if not zip_path.exists():
+        print(f"Error: Downloaded file not found at {zip_path}")
         sys.exit(1)
     
-    extract_tar_gz(str(tar_path), str(base_dir))
+    extract_zip(str(zip_path), str(base_dir))
     
     # Verify files
     print("\n" + "="*60)
@@ -120,15 +120,51 @@ def main():
         dataset_config['label_file']
     ]
     
+    # Note: The actual files in BGL.zip might have different names
+    # We'll check for common BGL file patterns
+    possible_files = [
+        'BGL.log',
+        'BGL_anomaly_label.csv', 
+        'anomaly_label.csv',
+        'BGL.log_structured.csv'
+    ]
+    
     all_found = True
+    found_files = []
+    
+    # Check for expected files
     for filename in expected_files:
         file_path = base_dir / filename
         if file_path.exists():
             size = file_path.stat().st_size
             print(f"✓ Found: {filename} ({size:,} bytes)")
+            found_files.append(filename)
         else:
             print(f"✗ Missing: {filename}")
-            all_found = False
+    
+    # Check for alternative file names
+    print("\nChecking for alternative BGL file names:")
+    for filename in possible_files:
+        file_path = base_dir / filename
+        if file_path.exists() and filename not in found_files:
+            size = file_path.stat().st_size
+            print(f"✓ Found alternative: {filename} ({size:,} bytes)")
+            found_files.append(filename)
+    
+    # Check if we have at least the raw log file
+    log_files = [f for f in found_files if f.endswith('.log')]
+    if not log_files:
+        print("\n✗ No BGL log file found!")
+        all_found = False
+    else:
+        print(f"\n✓ Found BGL log file: {log_files[0]}")
+    
+    # Check if we have label files
+    label_files = [f for f in found_files if 'label' in f.lower() or 'anomaly' in f.lower()]
+    if not label_files:
+        print("⚠ Warning: No BGL label file found - may need manual labeling")
+    else:
+        print(f"✓ Found BGL label file: {label_files[0]}")
     
     if all_found:
         print("\n✓ All required BGL files found!")
