@@ -65,7 +65,7 @@ ait_dataset:
       url: "https://zenodo.org/records/5789063/files/wilson.tar.gz?download=1"
       size: "39 GB"
       scan_volume: "High"
-  selected_dataset: "russellmitchell"  # Start with smallest dataset for testing
+  selected_dataset: "santos"  # Start with smallest dataset for testing
   log_types: ["apache_access", "apache_error", "auth", "dns", "vpn", "audit", "suricata", "syslog"]
   attack_types: ["scan", "webshell_upload", "password_cracking", "privilege_escalation", "remote_execution", "data_exfiltration"]
   
