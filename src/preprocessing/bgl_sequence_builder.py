@@ -146,35 +146,90 @@ class BGLSequenceBuilder:
     def add_labels(
         self,
         sequences_df: pd.DataFrame,
-        labels_csv: str
+        structured_csv: str
     ) -> pd.DataFrame:
         """
-        Add anomaly labels to BGL sequences.
+        Add anomaly labels to BGL sequences from structured CSV.
         
         Args:
             sequences_df: DataFrame with block sequences
-            labels_csv: Path to BGL anomaly label CSV (similar to HDFS)
+            structured_csv: Path to BGL structured CSV with labels
             
         Returns:
             DataFrame with labels added
         """
-        print(f"\nAdding BGL labels from: {labels_csv}")
+        print(f"\nAdding BGL labels from structured file: {structured_csv}")
         
-        # Load labels (should be similar to HDFS format)
-        labels_df = pd.read_csv(labels_csv)
-        print(f"Loaded {len(labels_df):,} BGL labels")
+        # Check if structured file exists
+        import os
+        if not os.path.exists(structured_csv):
+            print(f"  Warning: Structured file not found: {structured_csv}")
+            print("  Creating default labels (all normal) for BGL sequences")
+            
+            # Create default labels - all sequences marked as normal
+            labeled_df = sequences_df.copy()
+            labeled_df['Label'] = 0
+            
+            print(f"  Created default labels for {len(labeled_df):,} sequences")
+            
+            # Statistics
+            label_counts = labeled_df['Label'].value_counts().sort_index()
+            print(f"\nBGL label distribution (default):")
+            for label, count in label_counts.items():
+                label_name = "Normal" if label == 0 else "Anomaly"
+                percentage = (count / len(labeled_df)) * 100
+                print(f"  {label_name} ({label}): {count:,} ({percentage:.2f}%)")
+            
+            return labeled_df
         
-        # Rename columns if needed (similar to HDFS)
-        if 'BlockId' in labels_df.columns and 'Label' in labels_df.columns:
-            pass
-        elif len(labels_df.columns) == 2:
-            labels_df.columns = ['BlockId', 'Label']
-        else:
-            raise ValueError(f"Unexpected BGL label file format. Columns: {labels_df.columns.tolist()}")
+        # Load structured logs with labels
+        structured_df = pd.read_csv(structured_csv)
+        print(f"Loaded {len(structured_df):,} structured BGL entries")
+        
+        # Check if Label column exists
+        if 'Label' not in structured_df.columns:
+            print("  Warning: No Label column found in structured file")
+            print("  Creating default labels (all normal)")
+            
+            labeled_df = sequences_df.copy()
+            labeled_df['Label'] = 0
+            
+            print(f"  Created default labels for {len(labeled_df):,} sequences")
+            return labeled_df
+        
+        # Create block-based labels from structured data
+        block_labels = {}
+        
+        for idx, row in structured_df.iterrows():
+            content = str(row['Content'])
+            block_id = self.extract_block_id(content)
+            
+            if block_id:
+                label = row['Label']
+                
+                # If block has any anomaly, mark entire block as anomalous
+                if block_id not in block_labels:
+                    block_labels[block_id] = label
+                else:
+                    # If current label is anomaly (1), keep it
+                    if label == 1 or str(label).lower() in ['anomaly', 'true']:
+                        block_labels[block_id] = 1
+            
+            # Progress update
+            if (idx + 1) % 100000 == 0:
+                print(f"  Processed {idx + 1:,} structured entries")
+        
+        # Convert block labels to DataFrame
+        block_label_df = pd.DataFrame([
+            {'BlockId': block_id, 'Label': label}
+            for block_id, label in block_labels.items()
+        ])
+        
+        print(f"Created labels for {len(block_label_df):,} blocks")
         
         # Merge labels with sequences
         labeled_df = sequences_df.merge(
-            labels_df,
+            block_label_df,
             on='BlockId',
             how='left'
         )

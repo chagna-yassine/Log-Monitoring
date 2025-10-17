@@ -111,9 +111,10 @@ def main():
     print("STEP 4: LABEL ASSIGNMENT")
     print("="*70)
     
+    # Use structured CSV directly (BGL has labels in structured format)
     labeled_df = sequence_builder.add_labels(
         sequences_df,
-        str(label_file)
+        str(structured_csv)  # Use structured CSV instead of separate label file
     )
     
     # Save labeled sequences

@@ -110,7 +110,7 @@ def main():
         
         # Step 2: Preprocess BGL
         if not run_script(
-            str(scripts_dir / "preprocess_bgl.py"),
+            str(scripts_dir / "preprocess_bgl_simple.py"),
             "Step 2: Preprocess BGL Data"
         ):
             print("\nPipeline stopped due to error.")

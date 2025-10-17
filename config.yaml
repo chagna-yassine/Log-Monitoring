@@ -23,8 +23,9 @@ bgl_dataset:
   name: "BGL"
   url: "https://zenodo.org/records/8196385/files/BGL.zip?download=1"
   base_path: "datasets/bgl"
-  raw_log: "BGL.log"
-  label_file: "BGL_anomaly_label.csv"  # BGL has similar structure to HDFS
+  raw_log: "BGL_2k.log"
+  structured_file: "BGL_2k.log_structured.csv"  # BGL structured file with labels
+  templates_file: "BGL_2k.log_templates.csv"    # BGL templates file
   
 # Output Configuration
 output:
