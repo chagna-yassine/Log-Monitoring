@@ -201,10 +201,17 @@ def main():
         if labeled_df['Label'].dtype == 'object':
             label_mapping = {
                 'Normal': 0, 'Anomaly': 1, 'normal': 0, 'anomaly': 1,
+                '-': 0,  # BGL uses '-' for normal
                 0: 0, 1: 1, '0': 0, '1': 1,
                 'False': 0, 'True': 1, False: 0, True: 1
             }
             labeled_df['Label'] = labeled_df['Label'].map(label_mapping)
+        
+        # Handle NaN values by filling with 0 (normal)
+        nan_count = labeled_df['Label'].isna().sum()
+        if nan_count > 0:
+            print(f"  Warning: {nan_count} labels are NaN, filling with 0 (normal)")
+            labeled_df['Label'] = labeled_df['Label'].fillna(0)
         
         labeled_df['Label'] = labeled_df['Label'].astype(int)
         
