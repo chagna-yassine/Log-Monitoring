@@ -117,16 +117,20 @@ def main():
     
     expected_files = [
         dataset_config['raw_log'],
-        dataset_config['label_file']
+        dataset_config['structured_file'],
+        dataset_config['templates_file']
     ]
     
     # Note: The actual files in BGL.zip might have different names
     # We'll check for common BGL file patterns
     possible_files = [
+        'BGL_2k.log',
+        'BGL_2k.log_structured.csv', 
+        'BGL_2k.log_templates.csv',
+        'BGL_templates.csv',
         'BGL.log',
-        'BGL_anomaly_label.csv', 
-        'anomaly_label.csv',
-        'BGL.log_structured.csv'
+        'BGL.log_structured.csv',
+        'BGL.log_templates.csv'
     ]
     
     all_found = True
@@ -159,20 +163,36 @@ def main():
     else:
         print(f"\n✓ Found BGL log file: {log_files[0]}")
     
-    # Check if we have label files
-    label_files = [f for f in found_files if 'label' in f.lower() or 'anomaly' in f.lower()]
-    if not label_files:
-        print("⚠ Warning: No BGL label file found - may need manual labeling")
+    # Check if we have structured files
+    structured_files = [f for f in found_files if 'structured' in f.lower()]
+    if not structured_files:
+        print("⚠ Warning: No BGL structured file found")
     else:
-        print(f"✓ Found BGL label file: {label_files[0]}")
+        print(f"✓ Found BGL structured file: {structured_files[0]}")
     
-    if all_found:
+    # Check if we have template files
+    template_files = [f for f in found_files if 'template' in f.lower()]
+    if not template_files:
+        print("⚠ Warning: No BGL template file found")
+    else:
+        print(f"✓ Found BGL template file: {template_files[0]}")
+    
+    # Check overall success
+    has_log = len(log_files) > 0
+    has_structured = len(structured_files) > 0
+    has_templates = len(template_files) > 0
+    
+    if has_log and has_structured and has_templates:
         print("\n✓ All required BGL files found!")
         print("\nBGL dataset is ready for preprocessing.")
         print(f"Location: {base_dir.absolute()}")
+    elif has_log:
+        print("\n⚠ BGL log file found, but some structured/template files missing.")
+        print("BGL dataset may be ready for preprocessing with adjustments.")
+        print(f"Location: {base_dir.absolute()}")
     else:
-        print("\n✗ Some files are missing!")
-        print("Please check the extraction.")
+        print("\n✗ Critical BGL files missing!")
+        print("Please check the dataset download and extraction.")
         sys.exit(1)
     
     # Create output directory
