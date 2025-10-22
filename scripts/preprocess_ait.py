@@ -7,6 +7,7 @@ Handles multi-host logs, attack labels, and sequence building.
 
 import os
 import sys
+import json
 from pathlib import Path
 import yaml
 import pandas as pd
@@ -14,7 +15,7 @@ import pandas as pd
 # Add the src directory to the Python path
 sys.path.append(str(Path(__file__).resolve().parents[1] / 'src'))
 
-from parsers.drain import LogParser as DrainParser
+from parsers.drain import Drain as DrainParser
 from preprocessing.ait_parser import AITLogParser
 from preprocessing.template_mapper import TemplateMapper
 from preprocessing.ait_sequence_builder import AITSequenceBuilder
@@ -86,24 +87,35 @@ def main():
     content_file = output_path / "ait_content_for_drain.log"
     structured_df['Content'].to_csv(content_file, index=False, header=False)
     
+    # Create Drain parser with proper configuration
     drain_parser = DrainParser(
-        log_format=drain_config['log_format'],
-        indir=str(output_path),
-        outdir=str(output_path),
-        rex=drain_config['regex'],
-        keep_para=drain_config['keep_para'],
         depth=drain_config['depth'],
-        st=drain_config['st']
+        st=drain_config['st'],
+        rex=drain_config.get('rex', [])
     )
     
     print(f"Extracting templates from {content_file} using Drain...")
-    drain_parser.parse(
-        logName=content_file.name,
-        savePath=str(output_path / output_config['structured_log'])
-    )
     
-    # Load Drain-processed structured log
-    drain_structured_df = pd.read_csv(output_path / output_config['structured_log'])
+    # Read content and parse with Drain
+    event_ids = []
+    event_templates = []
+    
+    with open(content_file, 'r', encoding='utf-8') as f:
+        for log_id, line in enumerate(f):
+            line = line.strip()
+            if line:
+                event_id, template = drain_parser.parse(log_id, line)
+                event_ids.append(event_id)
+                event_templates.append(template)
+    
+    # Create DataFrame with Drain results
+    drain_structured_df = pd.DataFrame({
+        'EventId': event_ids,
+        'EventTemplate': event_templates
+    })
+    
+    # Clean up temporary file
+    content_file.unlink(missing_ok=True)
     
     # Merge EventId and EventTemplate back into our structured_df
     if len(structured_df) != len(drain_structured_df):
@@ -119,10 +131,20 @@ def main():
         structured_df = structured_df.iloc[:min_len]
         drain_structured_df = drain_structured_df.iloc[:min_len]
     
-    structured_df['EventId'] = drain_structured_df['EventId']
-    structured_df['EventTemplate'] = drain_structured_df['EventTemplate']
+    # Add Drain results to structured_df
+    if 'EventId' in drain_structured_df.columns:
+        structured_df['EventId'] = drain_structured_df['EventId']
+    else:
+        # Create sequential EventIds if not present
+        structured_df['EventId'] = range(len(structured_df))
     
-    # Clean up temporary file
+    if 'EventTemplate' in drain_structured_df.columns:
+        structured_df['EventTemplate'] = drain_structured_df['EventTemplate']
+    else:
+        # Use Content as template if not present
+        structured_df['EventTemplate'] = structured_df['Content']
+    
+    # Clean up temporary files
     content_file.unlink(missing_ok=True)
     
     print(f"Extracted {structured_df['EventTemplate'].nunique():,} unique event templates")
@@ -135,8 +157,19 @@ def main():
     print("STEP 3: TEMPLATE MAPPING")
     print("="*70)
     
-    template_mapper = TemplateMapper(config, dataset_type='ait')
-    template_mapper.create_mapping(structured_df)
+    template_mapper = TemplateMapper()
+    
+    # Create templates DataFrame for mapping
+    templates_df = structured_df.groupby(['EventId', 'EventTemplate']).size().reset_index(name='Occurrences')
+    templates_df = templates_df.sort_values('Occurrences', ascending=False)
+    
+    # Save templates CSV
+    templates_csv = output_path / output_config['templates']
+    templates_df.to_csv(templates_csv, index=False)
+    
+    # Create mapping
+    template_mapping_file = output_path / output_config['template_mapping']
+    template_mapper.create_mapping(str(templates_csv), str(template_mapping_file))
     print(f"Template mapping saved")
 
     # Step 4: Sequence Creation & Label Assignment
@@ -148,17 +181,34 @@ def main():
     
     # Load template mapping
     template_mapping_file = output_path / output_config['template_mapping']
-    with open(template_mapping_file, 'r') as f:
-        template_mapping = json.load(f)
-    
-    # Create event ID to template number mapping
-    event_id_mapping = {}
-    for template_id, template_content in template_mapping.items():
-        # Find EventId for this template
-        matching_rows = structured_df[structured_df['EventTemplate'] == template_content]
-        if not matching_rows.empty:
-            event_id = matching_rows['EventId'].iloc[0]
-            event_id_mapping[int(event_id)] = int(template_id)
+    if template_mapping_file.exists():
+        with open(template_mapping_file, 'r') as f:
+            template_mapping = json.load(f)
+        
+        # Use the event_id_to_number mapping directly
+        if 'event_id_to_number' in template_mapping:
+            event_id_mapping = {int(k): int(v) for k, v in template_mapping['event_id_to_number'].items()}
+        else:
+            # Fallback: create mapping from template content
+            event_id_mapping = {}
+            for template_id, template_content in template_mapping.items():
+                # Find EventId for this template
+                matching_rows = structured_df[structured_df['EventTemplate'] == template_content]
+                if not matching_rows.empty:
+                    event_id = matching_rows['EventId'].iloc[0]
+                    event_id_mapping[int(event_id)] = int(template_id)
+        
+    else:
+        print("Warning: Template mapping file not found, creating simple mapping")
+        # Create simple mapping from EventId to template number
+        unique_templates = structured_df['EventTemplate'].unique()
+        event_id_mapping = {}
+        for i, template in enumerate(unique_templates):
+            matching_rows = structured_df[structured_df['EventTemplate'] == template]
+            if not matching_rows.empty:
+                event_id = matching_rows['EventId'].iloc[0]
+                event_id_mapping[int(event_id)] = i + 1  # Start from 1, not 0
+        
     
     sequences_csv = output_path / output_config['sequences']
     sequences_df = ait_sequence_builder.build_sequences(
@@ -184,6 +234,11 @@ def main():
     text_converter = TextConverter(config, dataset_type='ait')
     text_sequences_df = text_converter.convert_sequences_to_text(labeled_sequences_df)
     print(f"Converted {len(text_sequences_df):,} sequences to text format")
+    
+    # Save text sequences
+    text_csv = output_path / "ait_text.csv"
+    text_sequences_df.to_csv(text_csv, index=False)
+    print(f"Text sequences saved to: {text_csv}")
 
     # Step 6: Train/Test Split
     print("\n" + "="*70)
@@ -215,9 +270,9 @@ def main():
     for name, path in files:
         if path.exists():
             size = path.stat().st_size / (1024 * 1024)  # MB
-            print(f"  ✓ {name}: {path.name} ({size:.2f} MB)")
+            print(f"  [OK] {name}: {path.name} ({size:.2f} MB)")
         else:
-            print(f"  ✗ {name}: {path.name} (not found)")
+            print(f"  [MISSING] {name}: {path.name} (not found)")
     
     print(f"\nDataset: {dataset_name}")
     print(f"Total log entries: {len(structured_df):,}")

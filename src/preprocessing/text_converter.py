@@ -4,9 +4,10 @@ Text Converter
 Converts numerical event sequences to readable text for model input.
 """
 
-from typing import List
+from typing import List, Dict, Any
 import pandas as pd
-from .template_mapper import TemplateMapper
+import json
+from pathlib import Path
 
 
 class TextConverter:
@@ -14,17 +15,41 @@ class TextConverter:
     Converts numerical event sequences to text format for LLM input.
     """
     
-    def __init__(self, template_mapper: TemplateMapper, separator: str = " | "):
+    def __init__(self, config: Dict[str, Any], dataset_type: str = "hdfs"):
         """
         Initialize text converter.
         
         Args:
-            template_mapper: TemplateMapper instance with loaded mapping
-            separator: Separator for joining event templates
+            config: Configuration dictionary
+            dataset_type: Type of dataset ("hdfs", "bgl", "ait")
         """
-        self.template_mapper = template_mapper
-        self.separator = separator
+        self.config = config
+        self.dataset_type = dataset_type
+        self.separator = config['preprocessing'].get('sequence_separator', ' | ')
         
+        # Load template mapping
+        self.template_mapping = self._load_template_mapping()
+        
+    def _load_template_mapping(self) -> Dict[int, str]:
+        """Load template mapping from file."""
+        output_config = self.config['output'][self.dataset_type]
+        output_path = Path(output_config['base_path'])
+        template_mapping_file = output_path / output_config['template_mapping']
+        
+        if template_mapping_file.exists():
+            with open(template_mapping_file, 'r') as f:
+                mapping = json.load(f)
+            
+            # Handle nested structure from TemplateMapper
+            if 'number_to_template' in mapping:
+                return {int(k): v for k, v in mapping['number_to_template'].items()}
+            else:
+                # Direct mapping format
+                return {int(k): v for k, v in mapping.items()}
+        else:
+            print(f"Warning: Template mapping file not found: {template_mapping_file}")
+            return {}
+    
     def convert_sequence(self, sequence_str: str) -> str:
         """
         Convert a numerical sequence to text.
@@ -42,43 +67,38 @@ class TextConverter:
             return ""
         
         # Map numbers to templates
-        templates = [
-            self.template_mapper.map_number_to_template(num)
-            for num in numbers
-        ]
+        templates = []
+        for num in numbers:
+            template = self.template_mapping.get(num, f"<UNKNOWN_{num}>")
+            templates.append(template)
         
         # Join with separator
         return self.separator.join(templates)
     
-    def convert_dataframe(
-        self,
-        df: pd.DataFrame,
-        sequence_column: str = 'EventSequence'
-    ) -> pd.DataFrame:
+    def convert_sequences_to_text(self, sequences_df: pd.DataFrame) -> pd.DataFrame:
         """
         Convert all sequences in a DataFrame to text.
         
         Args:
-            df: DataFrame with sequence column
-            sequence_column: Name of column containing sequences
+            sequences_df: DataFrame with EventSequence column
             
         Returns:
-            DataFrame with added 'Text' column
+            DataFrame with added 'TextSequence' column
         """
-        print(f"\nConverting sequences to text...")
+        print(f"\nConverting {self.dataset_type.upper()} sequences to text...")
         
-        df = df.copy()
-        df['Text'] = df[sequence_column].apply(self.convert_sequence)
+        df = sequences_df.copy()
+        df['TextSequence'] = df['EventSequence'].apply(self.convert_sequence)
         
         # Statistics
-        empty_texts = (df['Text'] == "").sum()
+        empty_texts = (df['TextSequence'] == "").sum()
         if empty_texts > 0:
             print(f"  Warning: {empty_texts} sequences converted to empty text")
         
         # Show sample
         print(f"\nSample converted texts:")
         for idx, row in df.head(3).iterrows():
-            text = row['Text']
+            text = row['TextSequence']
             if len(text) > 200:
                 text = text[:200] + "..."
             print(f"  [{idx}] {text}")

@@ -8,7 +8,7 @@ Supports multiple testbeds: fox, harrison, russellmitchell, santos, shaw, wardbe
 import os
 import sys
 import requests
-import tarfile
+import zipfile
 from pathlib import Path
 from tqdm import tqdm
 import yaml
@@ -64,22 +64,22 @@ def download_file(url: str, output_path: Path):
     return False
 
 
-def extract_tar_gz(tar_path: Path, extract_to: Path) -> bool:
-    """Extract tar.gz file."""
-    print(f"  Extracting {tar_path} to {extract_to}...")
+def extract_zip(zip_path: Path, extract_to: Path) -> bool:
+    """Extract zip file."""
+    print(f"  Extracting {zip_path} to {extract_to}...")
     
     try:
-        with tarfile.open(tar_path, 'r:gz') as tar:
-            members = tar.getmembers()
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            members = zip_ref.namelist()
             with tqdm(desc="Extracting", total=len(members)) as pbar:
                 for member in members:
-                    tar.extract(member, path=extract_to)
+                    zip_ref.extract(member, path=extract_to)
                     pbar.update(1)
         
         print(f"  ✓ Extraction complete: {extract_to}")
         return True
         
-    except tarfile.ReadError as e:
+    except zipfile.BadZipFile as e:
         print(f"  ✗ Extraction failed: {e}")
         return False
 
@@ -189,7 +189,7 @@ def main():
     print("DOWNLOADING DATASET")
     print("="*70)
     
-    archive_name = f"{selected_dataset['name']}.tar.gz"
+    archive_name = f"{selected_dataset['name']}.zip"
     archive_path = base_path / archive_name
     
     if archive_path.exists():
@@ -211,7 +211,7 @@ def main():
     print("EXTRACTING DATASET")
     print("="*70)
     
-    success = extract_tar_gz(archive_path, base_path)
+    success = extract_zip(archive_path, base_path)
     if not success:
         print("Extraction failed. Exiting.")
         sys.exit(1)
@@ -263,7 +263,7 @@ def main():
     print(f"  1. Check your internet connection")
     print(f"  2. Try downloading manually from Zenodo")
     print(f"  3. Use a different dataset (edit config.yaml)")
-    print(f"  4. Check Zenodo record: https://zenodo.org/record/5789063")
+    print(f"  4. Check Zenodo record: https://zenodo.org/records/5789064")
 
 
 if __name__ == "__main__":

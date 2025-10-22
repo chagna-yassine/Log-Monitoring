@@ -5,7 +5,7 @@ model:
   name: "Dumi2025/log-anomaly-detection-model-roberta"
   max_length: 512
   batch_size: 32
-  device: "cuda"  # or "cpu"
+  device: "cpu"  # or "cuda"
 
 # Dataset Selection (HDFS, BGL, or AIT)
 dataset_name: "AIT"  # Change to "HDFS", "BGL", or "AIT"
@@ -30,42 +30,42 @@ bgl_dataset:
 # AIT-LDS Dataset Configuration
 ait_dataset:
   name: "AIT-LDS"
-  base_url: "https://zenodo.org/record/5789063/files"
+  base_url: "https://zenodo.org/records/5789064/files"
   base_path: "datasets/ait"
   datasets:
     - name: "fox"
-      url: "https://zenodo.org/records/5789063/files/fox.tar.gz?download=1"
+      url: "https://zenodo.org/records/5789064/files/fox.zip?download=1"
       size: "26 GB"
       scan_volume: "High"
     - name: "harrison"
-      url: "https://zenodo.org/records/5789063/files/harrison.tar.gz?download=1"
+      url: "https://zenodo.org/records/5789064/files/harrison.zip?download=1"
       size: "27 GB"
       scan_volume: "High"
     - name: "russellmitchell"
-      url: "https://zenodo.org/records/5789063/files/russellmitchell.tar.gz?download=1"
+      url: "https://zenodo.org/records/5789064/files/russellmitchell.zip?download=1"
       size: "14 GB"
       scan_volume: "Low"
     - name: "santos"
-      url: "https://zenodo.org/records/5789063/files/santos.tar.gz?download=1"
+      url: "https://zenodo.org/records/5789064/files/santos.zip?download=1"
       size: "17 GB"
       scan_volume: "Low"
     - name: "shaw"
-      url: "https://zenodo.org/records/5789063/files/shaw.tar.gz?download=1"
+      url: "https://zenodo.org/records/5789064/files/shaw.zip?download=1"
       size: "27 GB"
       scan_volume: "Low"
     - name: "wardbeck"
-      url: "https://zenodo.org/records/5789063/files/wardbeck.tar.gz?download=1"
+      url: "https://zenodo.org/records/5789064/files/wardbeck.zip?download=1"
       size: "26 GB"
       scan_volume: "Low"
     - name: "wheeler"
-      url: "https://zenodo.org/records/5789063/files/wheeler.tar.gz?download=1"
+      url: "https://zenodo.org/records/5789064/files/wheeler.zip?download=1"
       size: "30 GB"
       scan_volume: "High"
     - name: "wilson"
-      url: "https://zenodo.org/records/5789063/files/wilson.tar.gz?download=1"
+      url: "https://zenodo.org/records/5789064/files/wilson.zip?download=1"
       size: "39 GB"
       scan_volume: "High"
-  selected_dataset: "santos"  # Start with smallest dataset for testing
+  selected_dataset: "fox"  # Start with fox dataset as requested
   log_types: ["apache_access", "apache_error", "auth", "dns", "vpn", "audit", "suricata", "syslog"]
   attack_types: ["scan", "webshell_upload", "password_cracking", "privilege_escalation", "remote_execution", "data_exfiltration"]
   
@@ -97,10 +97,16 @@ preprocessing:
   drain:
     depth: 4
     st: 0.4  # Similarity threshold
+    log_format: "<Content>"
+    regex: []
+    keep_para: True
     rex:
       - "(?<=blk_)[-\\d]+"
       - "\\d+\\.\\d+\\.\\d+\\.\\d+"
       - "(/[-\\w]+)+"
+      - "\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z\\b"  # AIT timestamps
+      - "\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b"  # IP addresses
+      - "\\b\\d+\\b"  # Numbers
   
   # Sequence parameters
   sequence_separator: " | "
