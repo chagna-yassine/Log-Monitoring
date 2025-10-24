@@ -1,0 +1,67 @@
+# Chunked AIT-LDS Processing Configuration
+
+# Processing Settings
+processing:
+  chunk_size_gb: 10.0  # Process in 10GB chunks
+  sequence_length: 20   # Logs per sequence
+  sequence_overlap: 5   # Overlap between sequences
+  min_sequence_length: 10  # Minimum logs per sequence
+  
+# Hugging Face Upload Settings
+huggingface:
+  repo_name: "ait-processed-data"  # Default repository name
+  repo_type: "dataset"              # Repository type
+  private: false                   # Public repository
+  
+# Memory Management
+memory:
+  cleanup_after_chunk: true        # Clean up memory after each chunk
+  force_garbage_collection: true   # Force garbage collection
+  max_memory_usage_gb: 12.0        # Maximum memory usage before cleanup
+
+# Attack Detection Settings
+attack_detection:
+  keywords:
+    - "attack"
+    - "malicious" 
+    - "suspicious"
+    - "intrusion"
+    - "breach"
+    - "exploit"
+    - "unauthorized"
+    - "failed"
+    - "denied"
+    - "blocked"
+    - "firewall"
+    - "scan"
+    - "nmap"
+    - "sql injection"
+    - "xss"
+    - "csrf"
+    - "ddos"
+    - "botnet"
+    - "trojan"
+  
+  suspicious_hosts:
+    - "attacker"
+    - "malicious"
+    - "suspicious"
+    - "external"
+  
+  patterns:
+    - "failed login"
+    - "port scan"
+    - "sql injection"
+    - "unauthorized access"
+
+# Synthetic Attack Generation
+synthetic_attacks:
+  enabled: true                    # Generate synthetic attacks if needed
+  min_attack_rate: 0.01           # Minimum attack rate (1%)
+  max_synthetic_per_chunk: 50     # Maximum synthetic attacks per chunk
+  attack_patterns:
+    - "Unauthorized access attempt detected"
+    - "Failed login attempt from suspicious IP"
+    - "Port scan detected on multiple ports"
+    - "SQL injection attempt blocked"
+    - "Malicious payload detected in request"

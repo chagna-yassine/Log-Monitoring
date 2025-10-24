@@ -5,7 +5,7 @@ model:
   name: "Dumi2025/log-anomaly-detection-model-roberta"
   max_length: 512
   batch_size: 32
-  device: "cpu"  # or "cuda"
+  device: "cuda"  # or "cpu"
 
 # Dataset Selection (HDFS, BGL, or AIT)
 dataset_name: "AIT"  # Change to "HDFS", "BGL", or "AIT"

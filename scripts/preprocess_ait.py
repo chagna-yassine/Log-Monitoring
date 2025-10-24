@@ -8,6 +8,7 @@ Handles multi-host logs, attack labels, and sequence building.
 import os
 import sys
 import json
+import gc
 from pathlib import Path
 import yaml
 import pandas as pd
@@ -21,6 +22,89 @@ from preprocessing.template_mapper import TemplateMapper
 from preprocessing.ait_sequence_builder import AITSequenceBuilder
 from preprocessing.data_splitter import DataSplitter
 from preprocessing.text_converter import TextConverter
+
+
+def parse_log_chunk_direct(chunk_data: list, host_name: str, log_type: str, start_id: int) -> pd.DataFrame:
+    """
+    Parse a chunk of log data directly without using AITLogParser methods.
+    This avoids module reloading issues in Colab.
+    """
+    parsed_logs = []
+    
+    # Basic log patterns for common log types
+    log_patterns = {
+        'apache_access': r'^(\d+\.\d+\.\d+\.\d+) - - \[([^\]]+)\] "([^"]+)" (\d+) (\d+) "([^"]*)" "([^"]*)"$',
+        'apache_error': r'^\[([^\]]+)\] \[([^\]]+)\] \[client ([^\]]+)\] ([^:]+): (.+)$',
+        'auth': r'^(\w{3} \d{1,2} \d{2}:\d{2}:\d{2}) (\S+) (\w+)(\[[\d]+\])?: (.+)$',
+        'audit': r'^type=(\w+) msg=audit\(([^)]+)\): (.+)$',
+        'syslog': r'^(\w{3} \d{1,2} \d{2}:\d{2}:\d{2}) (\S+) (\S+): (.+)$',
+    }
+    
+    for i, line in enumerate(chunk_data):
+        log_id = start_id + i
+        
+        # Create basic entry
+        entry = {
+            'LogId': log_id,
+            'Host': host_name,
+            'LogType': log_type,
+            'Content': line,
+            'Timestamp': '',
+            'Level': '',
+            'Message': line,
+            'Parsed': False
+        }
+        
+        # Try to parse based on log type
+        if log_type in log_patterns:
+            import re
+            pattern = log_patterns[log_type]
+            match = re.match(pattern, line)
+            
+            if match:
+                entry['Parsed'] = True
+                
+                if log_type == 'apache_access':
+                    entry.update({
+                        'Timestamp': match.group(2),
+                        'Source': match.group(1),
+                        'Method': match.group(3).split()[0] if ' ' in match.group(3) else match.group(3),
+                        'Status': match.group(4),
+                        'Size': match.group(5),
+                        'UserAgent': match.group(7)
+                    })
+                elif log_type == 'apache_error':
+                    entry.update({
+                        'Timestamp': match.group(1),
+                        'Level': match.group(2),
+                        'Source': match.group(3),
+                        'ErrorType': match.group(4),
+                        'Message': match.group(5)
+                    })
+                elif log_type == 'auth':
+                    entry.update({
+                        'Timestamp': match.group(1),
+                        'Source': match.group(2),
+                        'Process': match.group(3),
+                        'Message': match.group(5)
+                    })
+                elif log_type == 'audit':
+                    entry.update({
+                        'EventType': match.group(1),
+                        'Timestamp': match.group(2),
+                        'Details': match.group(3)
+                    })
+                elif log_type == 'syslog':
+                    entry.update({
+                        'Timestamp': match.group(1),
+                        'Source': match.group(2),
+                        'Process': match.group(3),
+                        'Message': match.group(4)
+                    })
+        
+        parsed_logs.append(entry)
+    
+    return pd.DataFrame(parsed_logs)
 
 
 def load_config(config_path: str = "config.yaml") -> dict:
@@ -45,7 +129,25 @@ def main():
     # Setup paths
     base_path = Path(ait_config['base_path'])
     dataset_name = ait_config['selected_dataset']
+    
+    # Check if dataset is in subdirectory or directly in base_path
     dataset_path = base_path / dataset_name
+    if not dataset_path.exists():
+        # Try direct path (dataset extracted directly)
+        dataset_path = base_path
+        print(f"Dataset not found in subdirectory, trying direct path: {dataset_path}")
+    
+    # Additional check: if we're using base_path, make sure it has the required structure
+    if dataset_path == base_path:
+        # Check if the required directories exist directly in base_path
+        gather_dir = dataset_path / 'gather'
+        if gather_dir.exists():
+            print(f"Using direct extraction path: {dataset_path}")
+        else:
+            # Try the subdirectory approach
+            dataset_path = base_path / dataset_name
+            print(f"Falling back to subdirectory path: {dataset_path}")
+    
     output_path = Path(output_config['base_path'])
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -59,33 +161,116 @@ def main():
         print(f"Error: Dataset not found: {dataset_path}")
         print("Please run: python scripts/download_data_ait.py")
         sys.exit(1)
+    
+    # Check for required directories
+    gather_dir = dataset_path / 'gather'
+    if not gather_dir.exists():
+        print(f"Error: gather directory not found: {gather_dir}")
+        print("Please check if the dataset was extracted correctly")
+        sys.exit(1)
 
-    # Step 1: AIT Log Parsing (multi-host structure)
+    # Step 1: AIT Log Parsing (multi-host structure) - CHUNKED PROCESSING
     print("\n" + "="*70)
-    print("STEP 1: AIT-LDS LOG PARSING")
+    print("STEP 1: AIT-LDS LOG PARSING (MEMORY-EFFICIENT)")
     print("="*70)
     
     ait_parser = AITLogParser(config)
-    structured_df = ait_parser.parse_all_logs()
+    # Override the dataset_path if we detected a different structure
+    ait_parser.dataset_path = dataset_path
+    ait_parser.dataset_yml = dataset_path / 'dataset.yml'
+    ait_parser.dataset_info = ait_parser._load_dataset_info()
     
-    if structured_df.empty:
+    # Process logs in chunks to avoid memory overflow
+    chunk_size = 50000  # Process 50k logs at a time
+    structured_csv = output_path / output_config['structured_log']
+    
+    print(f"Processing logs in chunks of {chunk_size:,} entries...")
+    
+    # Initialize counters
+    total_processed = 0
+    first_chunk = True
+    
+    # Get all hosts
+    gather_dir = dataset_path / 'gather'
+    hosts = [d for d in gather_dir.iterdir() if d.is_dir()]
+    print(f"Found {len(hosts)} hosts: {[h.name for h in hosts]}")
+    
+    for host in hosts:
+        print(f"\nProcessing host: {host.name}")
+        
+        # Get all log files for this host
+        logs_dir = host / 'logs'
+        if not logs_dir.exists():
+            continue
+            
+        log_files = []
+        for log_type_dir in logs_dir.iterdir():
+            if log_type_dir.is_dir():
+                for log_file in log_type_dir.iterdir():
+                    if log_file.is_file():
+                        log_files.append(log_file)
+        
+        print(f"  Found {len(log_files)} log files")
+        
+        # Process files in chunks
+        for log_file in log_files:
+            log_type = log_file.parent.name
+            
+            print(f"    Processing {log_type}: {log_file.name}")
+            
+            # Read file in chunks
+            chunk_data = []
+            with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+                for line_num, line in enumerate(f):
+                    line = line.strip()
+                    if line:
+                        chunk_data.append(line)
+                        
+                        # Process chunk when it reaches chunk_size
+                        if len(chunk_data) >= chunk_size:
+                            # Parse chunk directly without using parse_log_chunk method
+                            chunk_df = parse_log_chunk_direct(chunk_data, host.name, log_type, total_processed)
+                            
+                            if not chunk_df.empty:
+                                # Save chunk to CSV (append mode)
+                                mode = 'w' if first_chunk else 'a'
+                                header = first_chunk
+                                chunk_df.to_csv(structured_csv, mode=mode, header=header, index=False)
+                                first_chunk = False
+                                
+                                total_processed += len(chunk_df)
+                                print(f"      Processed {len(chunk_df):,} entries (Total: {total_processed:,})")
+                            
+                            # Clear chunk data to free memory
+                            chunk_data = []
+                            gc.collect()  # Force garbage collection
+            
+            # Process remaining data in chunk
+            if chunk_data:
+                chunk_df = parse_log_chunk_direct(chunk_data, host.name, log_type, total_processed)
+                
+                if not chunk_df.empty:
+                    mode = 'w' if first_chunk else 'a'
+                    header = first_chunk
+                    chunk_df.to_csv(structured_csv, mode=mode, header=header, index=False)
+                    first_chunk = False
+                    
+                    total_processed += len(chunk_df)
+                    print(f"      Processed {len(chunk_df):,} entries (Total: {total_processed:,})")
+    
+    if total_processed == 0:
         print("Error: No logs were parsed from AIT-LDS dataset")
         sys.exit(1)
     
-    print(f"Parsed {len(structured_df):,} AIT-LDS log entries")
-    
-    # Save structured logs
-    structured_csv = output_path / output_config['structured_log']
-    ait_parser.save_structured_logs(structured_df)
+    print(f"\nParsed {total_processed:,} AIT-LDS log entries total")
 
-    # Step 2: Event Template Extraction (using Drain)
+    # Step 2: Event Template Extraction (using Drain) - CHUNKED PROCESSING
     print("\n" + "="*70)
-    print("STEP 2: EVENT TEMPLATE EXTRACTION (DRAIN)")
+    print("STEP 2: EVENT TEMPLATE EXTRACTION (DRAIN) - MEMORY-EFFICIENT")
     print("="*70)
     
-    # Prepare content for Drain
-    content_file = output_path / "ait_content_for_drain.log"
-    structured_df['Content'].to_csv(content_file, index=False, header=False)
+    # Process Drain in chunks to avoid memory overflow
+    drain_chunk_size = 100000  # Process 100k logs at a time for Drain
     
     # Create Drain parser with proper configuration
     drain_parser = DrainParser(
@@ -94,73 +279,90 @@ def main():
         rex=drain_config.get('rex', [])
     )
     
-    print(f"Extracting templates from {content_file} using Drain...")
+    print(f"Processing Drain extraction in chunks of {drain_chunk_size:,} entries...")
     
-    # Read content and parse with Drain
-    event_ids = []
-    event_templates = []
+    # Read structured CSV in chunks and process with Drain
+    drain_results = []
+    chunk_num = 0
     
-    with open(content_file, 'r', encoding='utf-8') as f:
-        for log_id, line in enumerate(f):
-            line = line.strip()
-            if line:
+    # Read the structured CSV in chunks
+    chunk_iter = pd.read_csv(structured_csv, chunksize=drain_chunk_size)
+    
+    for chunk_df in chunk_iter:
+        chunk_num += 1
+        print(f"  Processing Drain chunk {chunk_num} ({len(chunk_df):,} entries)...")
+        
+        # Extract content for Drain
+        content_lines = chunk_df['Content'].tolist()
+        
+        # Process with Drain
+        event_ids = []
+        event_templates = []
+        
+        for log_id, line in enumerate(content_lines):
+            if line and str(line).strip():
                 event_id, template = drain_parser.parse(log_id, line)
                 event_ids.append(event_id)
                 event_templates.append(template)
-    
-    # Create DataFrame with Drain results
-    drain_structured_df = pd.DataFrame({
-        'EventId': event_ids,
-        'EventTemplate': event_templates
-    })
-    
-    # Clean up temporary file
-    content_file.unlink(missing_ok=True)
-    
-    # Merge EventId and EventTemplate back into our structured_df
-    if len(structured_df) != len(drain_structured_df):
-        print("  Warning: Mismatch in row count after Drain parsing")
-        print(f"  Original: {len(structured_df)}, Drain: {len(drain_structured_df)}")
         
-        # Try to align by content
-        structured_df = structured_df.reset_index(drop=True)
-        drain_structured_df = drain_structured_df.reset_index(drop=True)
+        # Add Drain results to chunk
+        chunk_df['EventId'] = event_ids[:len(chunk_df)]
+        chunk_df['EventTemplate'] = event_templates[:len(chunk_df)]
         
-        # Assume order is preserved, pad or truncate as needed
-        min_len = min(len(structured_df), len(drain_structured_df))
-        structured_df = structured_df.iloc[:min_len]
-        drain_structured_df = drain_structured_df.iloc[:min_len]
+        # Save updated chunk
+        mode = 'w' if chunk_num == 1 else 'a'
+        header = chunk_num == 1
+        chunk_df.to_csv(structured_csv, mode=mode, header=header, index=False)
+        
+        print(f"    Processed {len(chunk_df):,} entries with Drain")
+        gc.collect()  # Force garbage collection after each chunk
     
-    # Add Drain results to structured_df
-    if 'EventId' in drain_structured_df.columns:
-        structured_df['EventId'] = drain_structured_df['EventId']
-    else:
-        # Create sequential EventIds if not present
-        structured_df['EventId'] = range(len(structured_df))
+    # Count unique templates
+    print("Counting unique templates...")
+    unique_templates = set()
+    chunk_iter = pd.read_csv(structured_csv, chunksize=drain_chunk_size, usecols=['EventTemplate'])
     
-    if 'EventTemplate' in drain_structured_df.columns:
-        structured_df['EventTemplate'] = drain_structured_df['EventTemplate']
-    else:
-        # Use Content as template if not present
-        structured_df['EventTemplate'] = structured_df['Content']
+    for chunk_df in chunk_iter:
+        unique_templates.update(chunk_df['EventTemplate'].unique())
     
-    # Clean up temporary files
-    content_file.unlink(missing_ok=True)
-    
-    print(f"Extracted {structured_df['EventTemplate'].nunique():,} unique event templates")
-    
-    # Save updated structured logs
-    structured_df.to_csv(structured_csv, index=False)
+    print(f"Extracted {len(unique_templates):,} unique event templates")
 
-    # Step 3: Template Mapping
+    # Step 3: Template Mapping - CHUNKED PROCESSING
     print("\n" + "="*70)
-    print("STEP 3: TEMPLATE MAPPING")
+    print("STEP 3: TEMPLATE MAPPING (MEMORY-EFFICIENT)")
     print("="*70)
     
     template_mapper = TemplateMapper()
     
-    # Create templates DataFrame for mapping
-    templates_df = structured_df.groupby(['EventId', 'EventTemplate']).size().reset_index(name='Occurrences')
+    # Create templates DataFrame in chunks to avoid memory overflow
+    print("Creating template mapping from structured logs...")
+    
+    template_counts = {}
+    chunk_iter = pd.read_csv(structured_csv, chunksize=drain_chunk_size, usecols=['EventId', 'EventTemplate'])
+    
+    chunk_num = 0
+    for chunk_df in chunk_iter:
+        chunk_num += 1
+        print(f"  Processing template mapping chunk {chunk_num}...")
+        
+        # Count templates in this chunk
+        chunk_templates = chunk_df.groupby(['EventId', 'EventTemplate']).size().reset_index(name='Occurrences')
+        
+        # Merge with existing counts
+        for _, row in chunk_templates.iterrows():
+            key = (row['EventId'], row['EventTemplate'])
+            template_counts[key] = template_counts.get(key, 0) + row['Occurrences']
+    
+    # Create final templates DataFrame
+    templates_data = []
+    for (event_id, template), count in template_counts.items():
+        templates_data.append({
+            'EventId': event_id,
+            'EventTemplate': template,
+            'Occurrences': count
+        })
+    
+    templates_df = pd.DataFrame(templates_data)
     templates_df = templates_df.sort_values('Occurrences', ascending=False)
     
     # Save templates CSV

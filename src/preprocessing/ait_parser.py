@@ -25,7 +25,7 @@ class AITLogParser:
     - dataset.yml - Dataset metadata
     """
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], dataset_path: Path = None):
         self.config = config
         self.ait_config = config['ait_dataset']
         self.output_config = config['output']['ait']
@@ -34,7 +34,13 @@ class AITLogParser:
         # Setup paths
         self.base_path = Path(self.ait_config['base_path'])
         self.dataset_name = self.ait_config['selected_dataset']
-        self.dataset_path = self.base_path / self.dataset_name
+        
+        # Use provided dataset_path or construct default
+        if dataset_path is not None:
+            self.dataset_path = dataset_path
+        else:
+            self.dataset_path = self.base_path / self.dataset_name
+            
         self.output_path = Path(self.output_config['base_path'])
         self.output_path.mkdir(parents=True, exist_ok=True)
         
@@ -200,6 +206,47 @@ class AITLogParser:
             print(f"Error loading labels from {label_file}: {e}")
         
         return labels
+    
+    def parse_log_chunk(self, chunk_data: list, host_name: str, log_type: str, start_id: int) -> pd.DataFrame:
+        """
+        Parse a chunk of log data to avoid memory overflow.
+        
+        Args:
+            chunk_data: List of log lines
+            host_name: Name of the host
+            log_type: Type of log (apache_access, etc.)
+            start_id: Starting ID for this chunk
+            
+        Returns:
+            DataFrame with parsed log entries
+        """
+        parsed_logs = []
+        
+        for i, line in enumerate(chunk_data):
+            log_id = start_id + i
+            
+            # Parse based on log type
+            if log_type in self.log_patterns:
+                parsed = self._parse_log_line(line, log_type, i)
+                if parsed:
+                    parsed['LogId'] = log_id
+                    parsed['Host'] = host_name
+                    parsed['LogType'] = log_type
+                    parsed['Content'] = line
+                    parsed_logs.append(parsed)
+            else:
+                # Generic parsing for unknown log types
+                parsed_logs.append({
+                    'LogId': log_id,
+                    'Host': host_name,
+                    'LogType': log_type,
+                    'Content': line,
+                    'Timestamp': '',
+                    'Level': '',
+                    'Message': line
+                })
+        
+        return pd.DataFrame(parsed_logs)
     
     def parse_all_logs(self) -> pd.DataFrame:
         """

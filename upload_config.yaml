@@ -1,0 +1,45 @@
+# Configuration for uploading processed datasets to Hugging Face Hub
+
+# Dataset Configuration
+dataset:
+  name: "AIT-Fox-Log-Anomaly-Dataset"
+  description: "Processed AIT Fox dataset for log anomaly detection benchmarking"
+  version: "1.0.0"
+  
+# Repository Configuration
+repository:
+  name: "ait-fox-log-anomaly-dataset"  # Change this to your desired repo name
+  private: true
+  license: "MIT"
+  
+# Memory Management
+memory:
+  chunk_size: 5000          # Number of rows to process at once
+  max_memory_gb: 10.0       # Maximum memory usage (leave 2GB buffer)
+  cleanup_frequency: 5      # Cleanup every N chunks
+  
+# File Processing
+files:
+  required:
+    - "ait_train.csv"
+    - "ait_test.csv"
+  
+  metadata:
+    - "ait_log_templates.json"
+    - "ait_sequence_labeled.summary.json"
+    - "ait_templates.csv"
+    - "ait_structured.csv"
+  
+  ignore:
+    - "*.tmp"
+    - "*.log"
+
+# Hugging Face Features Schema
+features:
+  SessionId: "string"
+  EventSequence: "string"
+  SequenceLength: "int64"
+  Label: "int64"
+  IsAttack: "bool"
+  AttackLabels: "string"
+  TextSequence: "string"
