@@ -109,6 +109,42 @@ def parse_log_chunk_direct(chunk_data: list, host_name: str, log_type: str, star
     return pd.DataFrame(parsed_logs)
 
 
+def setup_huggingface_token():
+    """Help user set up Hugging Face token."""
+    print("🔑 HUGGING FACE AUTHENTICATION SETUP")
+    print("=" * 50)
+    print()
+    print("To upload to Hugging Face, you need a token.")
+    print()
+    print("Option 1: Get token from Hugging Face website")
+    print("1. Go to: https://huggingface.co/settings/tokens")
+    print("2. Click 'New token'")
+    print("3. Give it a name (e.g., 'ait-processing')")
+    print("4. Select 'Write' permissions")
+    print("5. Copy the token")
+    print()
+    print("Option 2: Use Hugging Face CLI")
+    print("1. Install: pip install huggingface_hub")
+    print("2. Login: huggingface-cli login")
+    print("3. Enter your token when prompted")
+    print()
+    print("Option 3: Set environment variable")
+    print("Windows: set HUGGINGFACE_HUB_TOKEN=your_token_here")
+    print("Linux/Mac: export HUGGINGFACE_HUB_TOKEN=your_token_here")
+    print()
+    
+    # Check if token is already set
+    import os
+    hf_token = os.getenv('HUGGINGFACE_HUB_TOKEN') or os.getenv('HF_TOKEN')
+    
+    if hf_token:
+        print("✅ Token found! You're ready to upload.")
+        return True
+    else:
+        print("❌ No token found. Please set up authentication first.")
+        return False
+
+
 def load_config(config_path: str = "config.yaml") -> dict:
     """Load configuration from YAML file."""
     with open(config_path, 'r') as f:
@@ -124,22 +160,40 @@ def get_chunk_size_gb(target_gb: float = 10.0) -> int:
     return max(10000, chunk_size)  # Minimum 10k rows
 
 
-def upload_to_huggingface(chunk_data: dict, chunk_id: int, repo_name: str):
+def upload_to_huggingface(chunk_data: dict, chunk_id: int, repo_name: str, hf_token: str = None):
     """Upload chunk data to Hugging Face."""
+    temp_dir = None
     try:
         from huggingface_hub import HfApi, Repository
         
-        api = HfApi()
+        # Check for Hugging Face token
+        if not hf_token:
+            print(f"  ⚠️  No Hugging Face token provided!")
+            print(f"  Skipping upload for chunk {chunk_id}")
+            return
+        
+        api = HfApi(token=hf_token)
         
         # Create temporary directory for this chunk
         temp_dir = Path(f"temp_chunk_{chunk_id}")
         temp_dir.mkdir(exist_ok=True)
         
         # Save chunk data
-        for filename, df in chunk_data.items():
+        for filename, data in chunk_data.items():
             file_path = temp_dir / filename
-            df.to_csv(file_path, index=False)
-            print(f"  Saved {filename}: {len(df):,} rows")
+            
+            # Handle different data types
+            if isinstance(data, pd.DataFrame):
+                data.to_csv(file_path, index=False)
+                print(f"  Saved {filename}: {len(data):,} rows")
+            elif isinstance(data, dict):
+                # Save dictionary as JSON
+                with open(file_path.with_suffix('.json'), 'w') as f:
+                    json.dump(data, f, indent=2)
+                print(f"  Saved {filename}: {len(data):,} entries")
+            else:
+                print(f"  Warning: Unknown data type for {filename}: {type(data)}")
+                continue
         
         # Upload to Hugging Face
         print(f"  Uploading chunk {chunk_id} to Hugging Face...")
@@ -153,13 +207,19 @@ def upload_to_huggingface(chunk_data: dict, chunk_id: int, repo_name: str):
         # Upload files
         for filename in chunk_data.keys():
             file_path = temp_dir / filename
-            api.upload_file(
-                path_or_fileobj=str(file_path),
-                path_in_repo=f"chunk_{chunk_id}/{filename}",
-                repo_id=repo_name,
-                repo_type="dataset"
-            )
-            print(f"    Uploaded {filename}")
+            
+            # Determine the correct file extension
+            if isinstance(chunk_data[filename], dict):
+                file_path = file_path.with_suffix('.json')
+            
+            if file_path.exists():
+                api.upload_file(
+                    path_or_fileobj=str(file_path),
+                    path_in_repo=f"chunk_{chunk_id}/{file_path.name}",
+                    repo_id=repo_name,
+                    repo_type="dataset"
+                )
+                print(f"    Uploaded {file_path.name}")
         
         # Clean up temporary directory
         shutil.rmtree(temp_dir)
@@ -168,7 +228,7 @@ def upload_to_huggingface(chunk_data: dict, chunk_id: int, repo_name: str):
     except Exception as e:
         print(f"  ✗ Error uploading chunk {chunk_id}: {e}")
         # Clean up temp directory if it exists
-        if temp_dir.exists():
+        if temp_dir and temp_dir.exists():
             shutil.rmtree(temp_dir)
 
 
@@ -255,8 +315,17 @@ def process_chunk(structured_df: pd.DataFrame, chunk_id: int, config: dict) -> d
                 continue
     
     if not sequences:
-        print(f"Error: No sequences could be created from chunk {chunk_id}")
-        return {}
+        print(f"Warning: No sequences could be created from chunk {chunk_id}")
+        print(f"  This might be due to insufficient log entries or very short logs")
+        # Return empty data structure instead of empty dict
+        return {
+            f'ait_chunk_{chunk_id}_structured.csv': structured_df,
+            f'ait_chunk_{chunk_id}_sequences.csv': pd.DataFrame(columns=['TextSequence', 'Label']),
+            f'ait_chunk_{chunk_id}_train.csv': pd.DataFrame(columns=['TextSequence', 'Label']),
+            f'ait_chunk_{chunk_id}_test.csv': pd.DataFrame(columns=['TextSequence', 'Label']),
+            f'ait_chunk_{chunk_id}_templates.csv': pd.DataFrame(columns=['EventId', 'EventTemplate', 'Occurrences']),
+            f'ait_chunk_{chunk_id}_mapping.json': {}
+        }
     
     # Create test DataFrame
     test_df = pd.DataFrame({
@@ -377,6 +446,12 @@ def process_chunk(structured_df: pd.DataFrame, chunk_id: int, config: dict) -> d
     train_df = normal_df.head(train_size)
     test_df_final = pd.concat([normal_df.tail(len(normal_df) - train_size), attack_df])
     
+    # Ensure we have valid DataFrames
+    if train_df.empty:
+        train_df = pd.DataFrame(columns=test_df.columns)
+    if test_df_final.empty:
+        test_df_final = pd.DataFrame(columns=test_df.columns)
+    
     # Prepare chunk data for upload
     chunk_data = {
         f'ait_chunk_{chunk_id}_structured.csv': structured_df,
@@ -425,11 +500,32 @@ def main():
         print(f"Error: gather directory not found: {gather_dir}")
         sys.exit(1)
     
+    # Get Hugging Face token and repository name
+    print("\n" + "="*70)
+    print("HUGGING FACE UPLOAD SETUP")
+    print("="*70)
+    
+    print("\nTo upload processed chunks to Hugging Face, you need:")
+    print("1. A Hugging Face token (get from: https://huggingface.co/settings/tokens)")
+    print("2. A repository name (e.g., 'username/ait-processed')")
+    print()
+    
+    # Get Hugging Face token
+    hf_token = input("Enter your Hugging Face token: ").strip()
+    if not hf_token:
+        print("❌ No token provided. Uploads will be skipped.")
+        hf_token = None
+    else:
+        print("✅ Token received!")
+    
     # Get Hugging Face repository name
-    repo_name = input("Enter Hugging Face repository name (e.g., 'username/ait-processed'): ").strip()
+    repo_name = input("\nEnter Hugging Face repository name (e.g., 'username/ait-processed'): ").strip()
     if not repo_name:
         repo_name = "ait-processed-data"
         print(f"Using default repository name: {repo_name}")
+    
+    print(f"\nRepository: {repo_name}")
+    print(f"Token: {'✅ Set' if hf_token else '❌ Not provided'}")
     
     # Calculate chunk size
     chunk_size_rows = get_chunk_size_gb(10.0)  # 10GB chunks
@@ -487,15 +583,14 @@ def main():
                                 # Process the chunk
                                 processed_data = process_chunk(chunk_df, chunk_id, config)
                                 
-                                if processed_data:
-                                    # Upload to Hugging Face
-                                    upload_to_huggingface(processed_data, chunk_id, repo_name)
-                                    
-                                    # Delete local data to free space
-                                    del chunk_df, processed_data
-                                    gc.collect()
-                                    
-                                    print(f"      ✓ Chunk {chunk_id} processed and uploaded")
+                                # Always upload (even if empty sequences)
+                                upload_to_huggingface(processed_data, chunk_id, repo_name, hf_token)
+                                
+                                # Delete local data to free space
+                                del chunk_df, processed_data
+                                gc.collect()
+                                
+                                print(f"      ✓ Chunk {chunk_id} processed and uploaded")
                                 
                             # Clear chunk data to free memory
                             chunk_data = []
@@ -514,28 +609,33 @@ def main():
                     # Process the chunk
                     processed_data = process_chunk(chunk_df, chunk_id, config)
                     
-                    if processed_data:
-                        # Upload to Hugging Face
-                        upload_to_huggingface(processed_data, chunk_id, repo_name)
-                        
-                        # Delete local data to free space
-                        del chunk_df, processed_data
-                        gc.collect()
-                        
-                        print(f"      ✓ Final chunk {chunk_id} processed and uploaded")
+                    # Always upload (even if empty sequences)
+                    upload_to_huggingface(processed_data, chunk_id, repo_name, hf_token)
+                    
+                    # Delete local data to free space
+                    del chunk_df, processed_data
+                    gc.collect()
+                    
+                    print(f"      ✓ Final chunk {chunk_id} processed and uploaded")
     
     print(f"\n{'='*70}")
     print("CHUNKED PREPROCESSING COMPLETE!")
     print(f"{'='*70}")
     print(f"Total chunks processed: {chunk_id}")
     print(f"Total entries processed: {total_processed:,}")
-    print(f"Data uploaded to: https://huggingface.co/datasets/{repo_name}")
-    print(f"Each chunk contains:")
-    print(f"  - Structured logs")
-    print(f"  - Event sequences")
-    print(f"  - Train/test splits")
-    print(f"  - Template mappings")
-    print(f"  - Text sequences")
+    
+    if hf_token:
+        print(f"✅ Data uploaded to: https://huggingface.co/datasets/{repo_name}")
+        print(f"Each chunk contains:")
+        print(f"  - Structured logs")
+        print(f"  - Event sequences")
+        print(f"  - Train/test splits")
+        print(f"  - Template mappings")
+        print(f"  - Text sequences")
+    else:
+        print(f"⚠️  Uploads were skipped (no token provided)")
+        print(f"Processed data is available locally in: datasets/ait/output/ait/")
+        print(f"To upload later, run the script again with a token")
 
 
 if __name__ == "__main__":

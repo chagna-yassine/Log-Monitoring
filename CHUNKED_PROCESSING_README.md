@@ -38,6 +38,26 @@ python scripts/run_chunked_processing.py
 python scripts/preprocess_ait_chunked.py
 ```
 
+**Note**: The script will ask for your Hugging Face token during execution. Get your token from: https://huggingface.co/settings/tokens
+
+## Hugging Face Token Setup
+
+When you run the script, it will ask for:
+
+1. **Hugging Face Token**: Your personal access token
+   - Get it from: https://huggingface.co/settings/tokens
+   - Select "Write" permissions
+   - Copy the token (you won't see it again!)
+
+2. **Repository Name**: Where to upload the data
+   - Format: `username/dataset-name`
+   - Example: `chYassine/ait-fox-processed`
+
+If you don't provide a token, the script will:
+- ✅ Process all chunks locally
+- ✅ Save data to `datasets/ait/output/ait/`
+- ⚠️ Skip uploads to Hugging Face
+
 ## Configuration
 
 Edit `chunked_config.yaml` to customize:

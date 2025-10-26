@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-AIT-LDS Chunked Processing Usage Example
+Resume AIT-LDS Chunked Processing
 
-This script demonstrates how to use the chunked preprocessing pipeline
-to process large AIT datasets in 10GB chunks and upload to Hugging Face.
+This script allows you to resume the chunked processing from where it left off.
+It will skip already processed chunks and continue with the remaining data.
 """
 
 import os
@@ -17,20 +17,12 @@ from preprocess_ait_chunked import main as run_chunked_processing
 
 
 def main():
-    """Run the chunked preprocessing pipeline."""
-    print("AIT-LDS Chunked Processing Pipeline")
+    """Resume the chunked preprocessing pipeline."""
+    print("AIT-LDS Chunked Processing - RESUME MODE")
     print("=" * 50)
     print()
-    print("This pipeline will:")
-    print("1. Process AIT dataset in 10GB chunks")
-    print("2. Create sequences and extract templates")
-    print("3. Ask for your Hugging Face token")
-    print("4. Upload each chunk to Hugging Face")
-    print("5. Delete local files to save storage")
-    print("6. Continue with next chunk")
-    print()
-    print("Note: You'll be asked for your Hugging Face token during execution.")
-    print("Get your token from: https://huggingface.co/settings/tokens")
+    print("This will resume processing from where it left off.")
+    print("Already processed chunks will be skipped.")
     print()
     
     # Check if we're in the right directory
@@ -52,7 +44,7 @@ def main():
     print()
     
     # Ask for confirmation
-    response = input("Do you want to continue? (y/n): ").lower().strip()
+    response = input("Do you want to resume processing? (y/n): ").lower().strip()
     if response not in ['y', 'yes']:
         print("Processing cancelled.")
         sys.exit(0)
@@ -62,9 +54,11 @@ def main():
         run_chunked_processing()
     except KeyboardInterrupt:
         print("\nProcessing interrupted by user.")
+        print("You can resume later by running this script again.")
         sys.exit(1)
     except Exception as e:
         print(f"\nError during processing: {e}")
+        print("You can resume later by running this script again.")
         sys.exit(1)
 
 
