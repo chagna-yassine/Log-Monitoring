@@ -508,9 +508,9 @@ def main():
     
     try:
         detector = LogAnomalyDetector(
-        model_name=model_config['name'],
-        max_length=model_config['max_length'],
-        batch_size=model_config['batch_size'],
+            model_name=model_config['name'],
+            max_length=model_config['max_length'],
+            batch_size=model_config['batch_size'],
             device=device
         )
     except Exception as e:

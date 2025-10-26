@@ -1,6 +1,6 @@
 """
-Upload Harrison AIT logs to Hugging Face as a Dataset object.
-This script processes the Harrison dataset from Zenodo.
+Upload Russell Mitchell AIT logs to Hugging Face as a Dataset object.
+This script processes the Russell Mitchell dataset from Zenodo.
 """
 
 import os
@@ -18,9 +18,9 @@ def load_config(config_path: str = "config.yaml") -> dict:
         return yaml.safe_load(f)
 
 def main():
-    """Upload Harrison AIT logs to Hugging Face."""
+    """Upload Russell Mitchell AIT logs to Hugging Face."""
     print("="*70)
-    print("UPLOAD HARRISON AIT LOGS TO HUGGING FACE")
+    print("UPLOAD RUSSELL MITCHELL AIT LOGS TO HUGGING FACE")
     print("="*70)
     
     # Load configuration
@@ -32,9 +32,9 @@ def main():
     print("HUGGING FACE UPLOAD SETUP")
     print("="*70)
     
-    print("\nTo upload Harrison logs to Hugging Face, you need:")
+    print("\nTo upload Russell Mitchell logs to Hugging Face, you need:")
     print("1. A Hugging Face token (get from: https://huggingface.co/settings/tokens)")
-    print("2. A repository name (e.g., 'username/ait-harrison-raw-logs')")
+    print("2. A repository name (e.g., 'username/ait-russellmitchell-raw-logs')")
     print()
     
     # Get Hugging Face token
@@ -46,7 +46,7 @@ def main():
     print("✅ Token received!")
     
     # Get Hugging Face repository name
-    repo_name = input("\nEnter Hugging Face repository name (e.g., 'username/ait-harrison-raw-logs'): ").strip()
+    repo_name = input("\nEnter Hugging Face repository name (e.g., 'username/ait-russellmitchell-raw-logs'): ").strip()
     if not repo_name:
         print("❌ Repository name required. Upload cancelled.")
         sys.exit(1)
@@ -62,17 +62,17 @@ def main():
         print(f"❌ Login failed: {e}")
         sys.exit(1)
     
-    # Setup paths
+    # Setup paths - look directly in datasets/ait
     base_path = Path(ait_config['base_path'])
     
-    # Check for Harrison dataset in the base path directly
+    # Check for dataset in the base path directly
     dataset_path = base_path
     gather_dir = dataset_path / 'gather'
     if not gather_dir.exists():
         print(f"\n❌ Error: gather directory not found: {gather_dir}")
-        print("Please extract the Harrison dataset to: datasets/ait/harrison")
+        print("Please extract the Russell Mitchell dataset to: datasets/ait")
         print("Or make sure the dataset is extracted in: datasets/ait/gather")
-        print("Download from: https://zenodo.org/records/5789064/files/harrison.zip")
+        print("Download from: https://zenodo.org/records/5789064/files/russellmitchell.zip")
         sys.exit(1)
     
     # Collect all log data
@@ -237,7 +237,7 @@ def main():
     output_path = Path("datasets/ait/output")
     output_path.mkdir(parents=True, exist_ok=True)
     
-    csv_file = output_path / "harrison_raw_logs_dataset.csv"
+    csv_file = output_path / "russellmitchell_raw_logs_dataset.csv"
     print(f"\n💾 Saving to CSV first: {csv_file}")
     print(f"   This may take a while for {len(df):,} entries...")
     

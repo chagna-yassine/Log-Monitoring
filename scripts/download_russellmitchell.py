@@ -1,5 +1,5 @@
 """
-Download Harrison AIT dataset from Zenodo
+Download Russell Mitchell AIT dataset from Zenodo
 """
 
 import os
@@ -62,16 +62,16 @@ def load_config(config_path: str = "config.yaml") -> dict:
         return yaml.safe_load(f)
 
 def main():
-    """Download Harrison AIT dataset."""
+    """Download Russell Mitchell AIT dataset."""
     print("="*70)
-    print("DOWNLOAD HARRISON AIT DATASET")
+    print("DOWNLOAD RUSSELL MITCHELL AIT DATASET")
     print("="*70)
     
     # Load configuration
     config = load_config()
     ait_config = config['ait_dataset']
     
-    dataset_name = "harrison"
+    dataset_name = "russellmitchell"
     base_path = Path(ait_config['base_path'])
     
     # Create directory if it doesn't exist
@@ -82,8 +82,8 @@ def main():
     archive_path = base_path / f"{dataset_name}.zip"
     extract_path = base_path
     
-    # URL for Harrison dataset
-    url = "https://zenodo.org/records/5789064/files/harrison.zip?download=1"
+    # URL for Russell Mitchell dataset
+    url = "https://zenodo.org/records/5789064/files/russellmitchell.zip?download=1"
     
     print(f"\nDownloading: {url}")
     print(f"Target: {archive_path}")
@@ -104,7 +104,7 @@ def main():
             
             print(f"\n[OK] Dataset ready at: {base_path / dataset_name}")
             print(f"\nNow run:")
-            print(f"  python scripts/upload_harrison_logs.py")
+            print(f"  python scripts/upload_russellmitchell_logs.py")
         else:
             print("\n[ERROR] Extraction failed")
     else:
