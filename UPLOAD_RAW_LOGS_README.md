@@ -1,10 +1,15 @@
-# Upload Raw AIT Logs to Hugging Face
+# Upload Raw AIT Logs to Hugging Face as Dataset
 
-This script uploads raw AIT log files directly to Hugging Face as a dataset, without any processing or sequence generation.
+This script reads raw AIT log files and creates a Hugging Face Dataset object with structured data columns.
 
 ## 🎯 Purpose
 
-Instead of processing logs in chunks (which creates many files and hits rate limits), this script uploads the original raw log files as-is to Hugging Face.
+This script reads all raw AIT log files and creates a Hugging Face Dataset with structured columns:
+- **content**: The actual log line text
+- **path**: Source file path (e.g., `attacker_0/logs/apache_access/access.log`)
+- **host**: Host name (e.g., `attacker_0`)
+- **log_type**: Type of log (e.g., `apache_access`)
+- **line_number**: Line number in the file
 
 ## 📋 Prerequisites
 
@@ -26,27 +31,19 @@ python scripts/upload_raw_logs.py
 
 ### What It Does
 
-1. ✅ Reads raw log files from `datasets/ait/gather/`
-2. ✅ Uploads each log file preserving the directory structure
-3. ✅ Creates a dataset repository on Hugging Face
-4. ✅ Uploads metadata files (dataset.yml if available)
+1. ✅ Reads all log lines from `datasets/ait/gather/`
+2. ✅ Creates structured entries with content, path, host, log_type, and line_number
+3. ✅ Builds a Hugging Face Dataset object
+4. ✅ Uploads the Dataset to Hugging Face
 
-### Output Structure
+### Dataset Structure
 
-The uploaded dataset will have this structure:
+The uploaded dataset will have these columns:
 
-```
-ait-fox-raw-logs/
-├── raw_logs/
-│   ├── {host}/
-│   │   └── logs/
-│   │       ├── {log_type}/
-│   │       │   └── {log_file}
-│   │       └── ...
-│   └── ...
-├── dataset.yml (if available)
-└── upload_summary.txt
-```
+| content | path | host | log_type | line_number |
+|---------|------|------|----------|-------------|
+| `2024-01-01 10:00:00 GET /index.html` | `attacker_0/logs/apache_access/access.log` | `attacker_0` | `apache_access` | `42` |
+| `Connection established from 192.168.1.1` | `webserver/logs/suricata/log.pcap` | `webserver` | `suricata` | `100` |
 
 ## 📊 Example
 
@@ -81,11 +78,28 @@ Found 30 hosts
 
 Processing host: attacker_0
   Found 152 log files
-  [1] Uploading: raw_logs/attacker_0/logs/apache_access/access.log (2.5 MB)
-      ✅ Uploaded successfully
-  [2] Uploading: raw_logs/attacker_0/logs/apache_error/error.log (1.2 MB)
-      ✅ Uploaded successfully
+  [1] Reading: access.log (2.5 MB)
+      ✅ Read 15,234 lines
+  [2] Reading: error.log (1.2 MB)
+      ✅ Read 8,943 lines
   ...
+
+======================================================================
+CREATING DATASET
+======================================================================
+Total log entries: 2,456,789
+
+Creating Dataset object...
+✅ Dataset created with 2,456,789 entries
+   Features: {'content': Value(dtype='string'), 'path': Value(dtype='string'), 
+              'host': Value(dtype='string'), 'log_type': Value(dtype='string'),
+              'line_number': Value(dtype='int64')}
+
+======================================================================
+UPLOADING TO HUGGING FACE
+======================================================================
+Uploading to: chYassine/ait-fox-raw-logs
+This may take a while...
 
 ======================================================================
 UPLOAD COMPLETE!
@@ -110,18 +124,28 @@ Dataset available at:
 
 Once uploaded, you can:
 
-1. **Load the raw logs**:
+1. **Load the dataset**:
 ```python
 from datasets import load_dataset
 
 dataset = load_dataset("chYassine/ait-fox-raw-logs")
 ```
 
-2. **Process locally** when you have time/resources:
+2. **Access the data**:
 ```python
-# Download and process locally
-logs = dataset['raw_logs']
-# ... your processing logic ...
+# Access all log lines
+for entry in dataset:
+    print(f"Path: {entry['path']}")
+    print(f"Content: {entry['content']}")
+    print(f"Host: {entry['host']}")
+    print(f"Log Type: {entry['log_type']}")
+    print()
+
+# Filter by host
+attacker_logs = dataset.filter(lambda x: x['host'] == 'attacker_0')
+
+# Filter by log type
+apache_logs = dataset.filter(lambda x: x['log_type'] == 'apache_access')
 ```
 
 3. **Share with others** without needing to download 26GB from Zenodo
