@@ -171,12 +171,12 @@ def create_charts_from_csv(csv_file: Path, output_dir: Path):
     
     # 6. Generate Statistics
     stats = {
-        'total_entries': len(df),
+        'total_entries': int(len(df)),
         'columns': list(df.columns),
-        'hosts': df['host'].nunique() if 'host' in df.columns else 0,
-        'log_types': df['log_type'].nunique() if 'log_type' in df.columns else 0,
-        'binary_files': df['is_binary'].sum() if 'is_binary' in df.columns else 0,
-        'text_logs': len(df) - (df['is_binary'].sum() if 'is_binary' in df.columns else 0)
+        'hosts': int(df['host'].nunique()) if 'host' in df.columns else 0,
+        'log_types': int(df['log_type'].nunique()) if 'log_type' in df.columns else 0,
+        'binary_files': int(df['is_binary'].sum()) if 'is_binary' in df.columns else 0,
+        'text_logs': int(len(df) - (df['is_binary'].sum() if 'is_binary' in df.columns else 0))
     }
     
     if 'is_anomaly' in df.columns:

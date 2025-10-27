@@ -47,18 +47,35 @@ def analyze_dataset(repo_name: str, output_dir: Path):
     print("="*70)
     
     stats = {
-        'total_entries': len(df),
+        'total_entries': int(len(df)),
         'columns': list(df.columns),
-        'hosts': df['host'].nunique() if 'host' in df.columns else 0,
-        'log_types': df['log_type'].nunique() if 'log_type' in df.columns else 0,
-        'binary_files': df['is_binary'].sum() if 'is_binary' in df.columns else 0,
-        'text_logs': len(df) - (df['is_binary'].sum() if 'is_binary' in df.columns else 0)
+        'hosts': int(df['host'].nunique()) if 'host' in df.columns else 0,
+        'log_types': int(df['log_type'].nunique()) if 'log_type' in df.columns else 0,
+        'binary_files': int(df['is_binary'].sum()) if 'is_binary' in df.columns else 0,
+        'text_logs': int(len(df) - (df['is_binary'].sum() if 'is_binary' in df.columns else 0))
     }
+    
+    # Convert numpy types to native Python types for JSON serialization
+    def convert_to_native(obj):
+        """Convert numpy types to native Python types."""
+        import numpy as np
+        if isinstance(obj, (np.integer, np.int64, np.int32)):
+            return int(obj)
+        elif isinstance(obj, (np.floating, np.float64, np.float32)):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {key: convert_to_native(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_to_native(item) for item in obj]
+        else:
+            return obj
     
     # Save statistics
     stats_file = output_dir / 'dataset_statistics.json'
     with open(stats_file, 'w') as f:
-        json.dump(stats, f, indent=2)
+        json.dump(convert_to_native(stats), f, indent=2)
     print(f"✅ Statistics saved: {stats_file}")
     
     # 2. Host Distribution Chart
@@ -216,8 +233,8 @@ def analyze_dataset(repo_name: str, output_dir: Path):
             plt.close()
             print("✅ Saved: anomaly_by_log_type.png")
         
-        stats['anomaly_count'] = int(anomaly_count)
-        stats['normal_count'] = int(normal_count)
+        stats['anomaly_count'] = int(anomaly_count) if anomaly_count else 0
+        stats['normal_count'] = int(normal_count) if normal_count else 0
     
     # 9. Comprehensive Summary Report
     print("\n" + "="*70)
