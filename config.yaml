@@ -130,3 +130,28 @@ benchmark:
     - "macro"
     - "micro"
 
+# Phase 1 Training Configuration (First Training Phase)
+# This configuration prepares data for building the log understanding base model
+phase1_training:
+  # Context-aware session grouping
+  time_window_minutes: 30  # Time window for grouping logs into sessions
+  
+  # Sequence length limits
+  max_sequence_length: 512  # Maximum sequence length for training
+  min_sequence_length: 4     # Minimum sequence length to include
+  
+  # Curriculum learning buckets (sequence length buckets for progressive training)
+  curriculum_buckets: [8, 16, 32, 64, 128, 256, 512]
+  
+  # Masked log modeling configuration
+  mask_probability: 0.15  # Probability of masking tokens
+  
+  # Next-log prediction configuration
+  next_log_window_size: 5  # Context window size for next-log prediction
+  
+  # Contrastive learning augmentations
+  contrastive_augmentations:
+    - "time_crop"       # Split session by time (first half / second half)
+    - "log_type_sample" # Sample different log types
+    - "sequence_sample" # Sample every Nth element
+
